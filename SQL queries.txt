@@ -1,0 +1,19 @@
+ALTER TABLE inventory 
+ADD COLUMN reserved_by INT DEFAULT NULL,
+ADD COLUMN reserved_at DATETIME DEFAULT NULL;
+
+ALTER TABLE inventory
+ADD CONSTRAINT fk_inventory_reserved_by
+    FOREIGN KEY (reserved_by) REFERENCES users(user_id)
+    ON DELETE SET NULL;
+
+CREATE TABLE book_ratings (
+    user_id INT NOT NULL,
+    isbn VARCHAR(13) NOT NULL,
+    rating_type ENUM('like', 'dislike') NOT NULL,
+    PRIMARY KEY (user_id, isbn),
+    CONSTRAINT fk_ratings_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_ratings_book FOREIGN KEY (isbn) REFERENCES books(isbn) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+

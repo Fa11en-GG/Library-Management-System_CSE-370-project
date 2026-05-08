@@ -1,0 +1,71 @@
+CREATE DATABASE IF NOT EXISTS library_db;
+USE library_db;
+
+-- 1. Unified Users Table
+CREATE TABLE users (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
+    phone VARCHAR(20) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role ENUM('user', 'admin') DEFAULT 'user'
+);
+
+-- 2. Books Table
+CREATE TABLE books (
+    isbn VARCHAR(13) PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    author_name VARCHAR(255),
+    publisher VARCHAR(255),
+    book_type VARCHAR(50)
+);
+
+-- 3. Inventory Table
+CREATE TABLE inventory (
+    item_id INT AUTO_INCREMENT PRIMARY KEY,
+    isbn VARCHAR(13),
+    status ENUM('Available', 'Borrowed') DEFAULT 'Available',
+    FOREIGN KEY (isbn) REFERENCES books(isbn) ON DELETE CASCADE
+);
+
+-- 4. Loans & Fines (Teammates A & B logic)
+CREATE TABLE loans (
+    loan_id INT AUTO_INCREMENT PRIMARY KEY,
+    item_id INT,
+    borrower_phone VARCHAR(20),
+    checkout_date DATE,
+    due_date DATE,
+    return_date DATE,
+    status ENUM('checked_out', 'returned') DEFAULT 'checked_out',
+    FOREIGN KEY (item_id) REFERENCES inventory(item_id)
+);
+
+CREATE TABLE fines (
+    fine_id INT AUTO_INCREMENT PRIMARY KEY,
+    loan_id INT,
+    amount DECIMAL(10,2),
+    fine_date DATE,
+    is_paid BOOLEAN DEFAULT FALSE,
+    FOREIGN KEY (loan_id) REFERENCES loans(loan_id)
+);
+
+-- 5. Ratings & Recommendations
+CREATE TABLE book_ratings (
+    phone VARCHAR(20),
+    isbn VARCHAR(13),
+    rating_type ENUM('like', 'dislike'),
+    PRIMARY KEY (phone, isbn)
+);
+
+-- 6. Insert Test Data
+INSERT INTO users (phone, password, role) VALUES 
+('0123456789', 'admin123', 'admin'),
+('1112223333', 'pass123', 'user');
+
+INSERT INTO books (isbn, title, author_name, publisher) VALUES 
+('97801', 'The Great Gatsby', 'F. Scott Fitzgerald', 'Scribner'),
+('97802', '1984', 'George Orwell', 'Secker & Warburg'),
+('97803', 'The Hobbit', 'J.R.R. Tolkien', 'Allen & Unwin');
+
+INSERT INTO inventory (isbn, status) VALUES 
+('97801', 'Available'), ('97801', 'Available'),
+('97802', 'Available'), 
+('97803', 'Available');
