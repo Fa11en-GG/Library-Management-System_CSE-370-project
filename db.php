@@ -1,13 +1,6 @@
 <?php
-$host = 'localhost';
-$db   = 'library_db';
-$user = 'root';
-$pass = '';
-
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$db", $user, $pass);
+    $pdo = new PDO("mysql:host=localhost;dbname=library_db", "root", "");
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (Exception $e) {
-    die("Database error: " . $e->getMessage());
-}
+} catch (PDOException $e) { die("Connection failed: " . $e->getMessage()); }
 ?>

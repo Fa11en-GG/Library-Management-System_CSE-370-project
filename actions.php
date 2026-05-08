@@ -1,44 +1,53 @@
 <?php
 include 'db.php';
-$user_id = 1; // Simulated active user
+session_start();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = $_POST['action'];
-    $response = ["status" => "error", "msg" => "Request failed"];
+// Ensure user is logged in
+if(!isset($_SESSION['user'])) {
+    echo json_encode(["msg" => "Error: Not logged in"]);
+    exit;
+}
 
-    if ($action == 'reserve') {
-        $isbn = $_POST['isbn'];
-        $total = $pdo->prepare("SELECT COUNT(*) FROM inventory WHERE reserved_by = ?");
-        $total->execute([$user_id]);
+$user = $_SESSION['user']; 
+$action = $_POST['action'] ?? ''; 
+$isbn = $_POST['isbn'] ?? '';
+
+header('Content-Type: application/json');
+
+try {
+    if ($action == 'borrow' || $action == 'reserve') {
+        $status_map = ['borrow' => 'Borrowed', 'reserve' => 'Reserved'];
+        $loan_map = ['borrow' => 'checked_out', 'reserve' => 'reserved'];
         
-        $duplicate = $pdo->prepare("SELECT COUNT(*) FROM inventory WHERE reserved_by = ? AND isbn = ?");
-        $duplicate->execute([$user_id, $isbn]);
+        // 1. Check for available copy
+        $stmt = $pdo->prepare("SELECT item_id FROM inventory WHERE isbn = ? AND status = 'Available' LIMIT 1");
+        $stmt->execute([$isbn]);
+        $item = $stmt->fetch();
 
-        if ($total->fetchColumn() >= 3) {
-            $response['msg'] = "Limit reached: Max 3 reservations allowed.";
-        } elseif ($duplicate->fetchColumn() > 0) {
-            $response['msg'] = "You already have a copy of this book.";
+        if ($item) {
+            $pdo->beginTransaction();
+            // 2. Record Loan/Reservation
+            $stmt = $pdo->prepare("INSERT INTO loans (item_id, borrower_phone, checkout_date, due_date, status) VALUES (?, ?, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), ?)");
+            $stmt->execute([$item['item_id'], $user, $loan_map[$action]]); 
+            
+            // 3. Update Inventory
+            $pdo->prepare("UPDATE inventory SET status = ? WHERE item_id = ?")->execute([$status_map[$action], $item['item_id']]);
+            
+            $pdo->commit();
+            echo json_encode(["msg" => "Success: Book " . $action . "ed!"]);
         } else {
-            $stmt = $pdo->prepare("UPDATE inventory SET reserved_by = ?, reserved_at = NOW() WHERE isbn = ? AND reserved_by IS NULL LIMIT 1");
-            $stmt->execute([$user_id, $isbn]);
-            if ($stmt->rowCount() > 0) $response = ["status" => "success", "msg" => "Reserved for 12 hours!"];
-            else $response['msg'] = "Sorry, no copies currently available.";
+            echo json_encode(["msg" => "Error: No copies available"]);
         }
     }
 
-    if ($action == 'drop') {
-        $item_id = $_POST['item_id'];
-        $pdo->prepare("UPDATE inventory SET reserved_by = NULL, reserved_at = NULL WHERE item_id = ?")->execute([$item_id]);
-        $response = ["status" => "success", "msg" => "Reservation released."];
-    }
-
     if ($action == 'rate') {
-        $isbn = $_POST['isbn'];
-        $type = $_POST['type'];
-        $pdo->prepare("REPLACE INTO book_ratings (user_id, isbn, rating_type) VALUES (?, ?, ?)")->execute([$user_id, $isbn, $type]);
-        $response = ["status" => "success", "msg" => "Rating updated."];
+        $type = $_POST['rating_type'];
+        $stmt = $pdo->prepare("INSERT INTO book_ratings (phone, isbn, rating_type) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE rating_type = ?");
+        $stmt->execute([$user, $isbn, $type, $type]);
+        echo json_encode(["msg" => "Rating saved"]);
     }
-
-    echo json_encode($response);
-    exit;
+} catch (Exception $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    echo json_encode(["msg" => "DB Error: " . $e->getMessage()]);
 }
+?>
